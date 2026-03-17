@@ -1,48 +1,78 @@
-const mongoose = require("mongoose");
+const mongoose = require("mongoose")
+const ledgerModel = require("./ledger.model")
 
-
-const ledgerSchema = new mongoose.Schema({
-    account: {
+const accountSchema = new mongoose.Schema({
+    user: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "account",
-        required: [true, "Ledger entry must be associated with an account"],
-        index: true,
-        immutable: true
+        ref: "user",
+        required: [ true, "Account must be associated with a user" ],
+        index: true
     },
-    amount: {
-        type: Number,
-        required: [true, "Amount is required for a ledger entry"],
-        immutable: true
-    },
-    transaction: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "transaction",
-        required: [true, "Ledger entry must be associated with a transaction"],
-        index: true,
-        immutable: true
-    },
-    type: {
+    status: {
         type: String,
         enum: {
-            values: ["DEBIT", "CREDIT"],
-            message: "Type must be DEBIT or CREDIT"
+            values: [ "ACTIVE", "FROZEN", "CLOSED" ],
+            message: "Status can be either ACTIVE, FROZEN or CLOSED",
         },
-        required: [true, "Type is required for a ledger entry"],
-        immutable: true
+        default: "ACTIVE"
+    },
+    currency: {
+        type: String,
+        required: [ true, "Currency is required for creating an account" ],
+        default: "INR"
     }
 }, {
     timestamps: true
-});
+})
 
-function preventLedgerModification(next) {
-    if (!this.isNew) {
-        return next(new Error("Ledger entries cannot be updated"));
+accountSchema.index({ user: 1, status: 1 })
+
+accountSchema.methods.getBalance = async function () {
+
+    const balanceData = await ledgerModel.aggregate([
+        { $match: { account: this._id } },
+        {
+            $group: {
+                _id: null,
+                totalDebit: {
+                    $sum: {
+                        $cond: [
+                            { $eq: [ "$type", "DEBIT" ] },
+                            "$amount",
+                            0
+                        ]
+                    }
+                },
+                totalCredit: {
+                    $sum: {
+                        $cond: [
+                            { $eq: [ "$type", "CREDIT" ] },
+                            "$amount",
+                            0
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                balance: { $subtract: [ "$totalCredit", "$totalDebit" ] }
+            }
+        }
+    ])
+
+    if (balanceData.length === 0) {
+        return 0
     }
-    next();
+
+    return balanceData[ 0 ].balance
+
 }
 
-ledgerSchema.pre("save", preventLedgerModification);
 
-const ledgerModel = mongoose.model("ledger", ledgerSchema);
+const accountModel = mongoose.model("account", accountSchema)
 
-module.exports = ledgerModel;
+
+
+module.exports = accountModel

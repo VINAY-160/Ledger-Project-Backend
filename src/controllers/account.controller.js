@@ -1,25 +1,54 @@
-const accountModel=require('../models/account.model')
+const accountModel = require("../models/account.model");
 
 
-async function createAccountController(req,res){
-    const user=req.user;
-    const {currency}=req.body;
+async function createAccountController(req, res) {
 
-    if(!currency){
-        return res.status(422).json({
-            message:"Currency is required for creating an account"
-        })
-    }
+    const user = req.user;
 
-    const account=await accountModel.create({
-        user:user._id,
-        currency
+    const account = await accountModel.create({
+        user: user._id
     })
 
     res.status(201).json({
-        message:"Account Created Successfully",
         account
+    })
+
+}
+
+async function getUserAccountsController(req, res) {
+
+    const accounts = await accountModel.find({ user: req.user._id });
+
+    res.status(200).json({
+        accounts
     })
 }
 
-module.exports={createAccountController}; 
+async function getAccountBalanceController(req, res) {
+    const { accountId } = req.params;
+
+    const account = await accountModel.findOne({
+        _id: accountId,
+        user: req.user._id
+    })
+
+    if (!account) {
+        return res.status(404).json({
+            message: "Account not found"
+        })
+    }
+
+    const balance = await account.getBalance();
+
+    res.status(200).json({
+        accountId: account._id,
+        balance: balance
+    })
+}
+
+
+module.exports = {
+    createAccountController,
+    getUserAccountsController,
+    getAccountBalanceController
+}
