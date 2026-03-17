@@ -71,8 +71,6 @@ accountSchema.methods.getBalance = async function () {
 }
 
 
-const accountModel = mongoose.model("account", accountSchema)
+const Account = mongoose.models.Account || mongoose.model('Account', accountSchema);
 
-
-
-module.exports = accountModel
+module.exports = Account;
